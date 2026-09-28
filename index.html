@@ -109,6 +109,8 @@
     .fr { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
     .btn-submit { background: var(--orange); color: white; border: none; width: 100%; padding: 1rem; font-family: 'Inter', sans-serif; font-size: 0.8rem; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; cursor: pointer; border-radius: 3px; transition: background 0.2s; }
     .btn-submit:hover { background: var(--orange-light); }
+    .btn-submit:disabled { opacity: 0.65; cursor: wait; }
+    .form-honeypot { position: absolute !important; left: -10000px !important; width: 1px !important; height: 1px !important; overflow: hidden !important; }
 
     footer { background: #080c10; padding: 1.5rem 8%; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 1rem; border-top: 2px solid var(--orange); }
     .footer-brand { font-family: 'Barlow Condensed', sans-serif; font-size: 1rem; font-weight: 700; text-transform: uppercase; color: white; letter-spacing: 0.05em; }
@@ -299,17 +301,17 @@
         <div class="ci"><div class="ci-icon">🌐</div><div><div class="ci-label">Website</div><div class="ci-val">swiftlocating.ca</div></div></div>
         <div class="ci"><div class="ci-icon">📍</div><div><div class="ci-label">Service Area</div><div class="ci-val">Alberta, Canada</div></div></div>
       </div>
-      <div>
+      <form id="quote-form">
         <div class="fr">
-          <div class="fg"><label>First Name</label><input type="text" placeholder="John" /></div>
-          <div class="fg"><label>Last Name</label><input type="text" placeholder="Smith" /></div>
+          <div class="fg"><label for="cf-first">First Name</label><input id="cf-first" name="firstName" type="text" autocomplete="given-name" placeholder="John" required /></div>
+          <div class="fg"><label for="cf-last">Last Name</label><input id="cf-last" name="lastName" type="text" autocomplete="family-name" placeholder="Smith" /></div>
         </div>
-        <div class="fg"><label>Company</label><input type="text" placeholder="Your company name" /></div>
-        <div class="fg"><label>Phone</label><input type="tel" placeholder="780-000-0000" /></div>
-        <div class="fg"><label>Email</label><input type="email" placeholder="you@example.com" /></div>
+        <div class="fg"><label for="cf-company">Company</label><input id="cf-company" name="company" type="text" autocomplete="organization" placeholder="Your company name" /></div>
+        <div class="fg"><label for="cf-phone">Phone</label><input id="cf-phone" name="phone" type="tel" autocomplete="tel" placeholder="780-000-0000" required /></div>
+        <div class="fg"><label for="cf-email">Email</label><input id="cf-email" name="email" type="email" autocomplete="email" placeholder="you@example.com" required /></div>
         <div class="fg">
-          <label>Service Needed</label>
-          <select>
+          <label for="cf-service">Service Needed</label>
+          <select id="cf-service" name="service">
             <option value="" disabled selected>Select…</option>
             <option>Pre-Dig Utility Locate</option>
             <option>Mapping & Documentation</option>
@@ -318,43 +320,75 @@
             <option>Other</option>
           </select>
         </div>
-        <div class="fg"><label>Site Address / Details</label><textarea id="cf-details" placeholder="Project location, scope, and preferred date…"></textarea></div>
-        <button class="btn-submit" id="cf-submit" type="button" onclick="submitForm()">Submit Request →</button>
-        <div id="cf-status" style="margin-top:12px;font-size:0.8rem;display:none;padding:10px 14px;border-radius:4px;"></div>
-      </div>
+        <div class="fg"><label for="cf-details">Site Address / Details</label><textarea id="cf-details" name="details" placeholder="Project location, scope, and preferred date…"></textarea></div>
+        <div class="form-honeypot" aria-hidden="true"><label for="cf-website">Leave this field blank</label><input id="cf-website" name="website" type="text" tabindex="-1" autocomplete="off" /></div>
+        <button class="btn-submit" id="cf-submit" type="submit">Submit Request →</button>
+        <div id="cf-status" role="status" aria-live="polite" style="margin-top:12px;font-size:0.8rem;display:none;padding:10px 14px;border-radius:4px;"></div>
+      </form>
     </div>
   </section>
 
   <script>
-  function submitForm() {
-    const first = document.querySelector('input[placeholder="John"]').value.trim();
-    const last = document.querySelector('input[placeholder="Smith"]').value.trim();
-    const company = document.querySelector('input[placeholder="Your company name"]').value.trim();
-    const phone = document.querySelector('input[placeholder="780-000-0000"]').value.trim();
-    const email = document.querySelector('input[placeholder="you@example.com"]').value.trim();
-    const service = document.querySelector('select').value;
-    const details = document.getElementById('cf-details').value.trim();
-    const status = document.getElementById('cf-status');
-    const btn = document.getElementById('cf-submit');
+  const quoteForm = document.getElementById('quote-form');
+  const quoteEndpoint = 'https://wildrose-widget.wildeautomations.com/api/lead';
 
-    if (!first || !email || !phone) {
-      status.style.display = 'block';
-      status.style.background = 'rgba(239,68,68,0.1)';
-      status.style.color = '#ef4444';
-      status.style.border = '1px solid rgba(239,68,68,0.3)';
-      status.textContent = 'Please fill in your name, phone, and email.';
+  function showFormStatus(message, ok) {
+    const status = document.getElementById('cf-status');
+    status.style.display = 'block';
+    status.style.background = ok ? 'rgba(34,197,94,0.1)' : 'rgba(239,68,68,0.1)';
+    status.style.color = ok ? '#22c55e' : '#ef4444';
+    status.style.border = ok ? '1px solid rgba(34,197,94,0.3)' : '1px solid rgba(239,68,68,0.3)';
+    status.textContent = message;
+  }
+
+  quoteForm.addEventListener('submit', async (event) => {
+    event.preventDefault();
+    const btn = document.getElementById('cf-submit');
+    const data = new FormData(quoteForm);
+
+    if (data.get('website')) {
+      showFormStatus('Your request has been sent. Swift Line Locating will follow up shortly.', true);
+      quoteForm.reset();
       return;
     }
 
-    const body = `New Locate Request\n\nName: ${first} ${last}\nCompany: ${company}\nPhone: ${phone}\nEmail: ${email}\nService: ${service}\nDetails:\n${details}`;
-    window.location.href = `mailto:Locates@swiftlocating.ca?subject=${encodeURIComponent('New Locate Request from '+first+' '+last)}&body=${encodeURIComponent(body)}`;
+    btn.disabled = true;
+    btn.textContent = 'Sending…';
 
-    status.style.display = 'block';
-    status.style.background = 'rgba(34,197,94,0.1)';
-    status.style.color = '#22c55e';
-    status.style.border = '1px solid rgba(34,197,94,0.3)';
-    status.textContent = 'Opening your email app to send the request to Swift Line Locating…';
-  }
+    try {
+      const first = String(data.get('firstName') || '').trim();
+      const last = String(data.get('lastName') || '').trim();
+      const company = String(data.get('company') || '').trim();
+      const service = String(data.get('service') || '').trim();
+      const details = String(data.get('details') || '').trim();
+      const response = await fetch(quoteEndpoint, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          businessId: 'swift-line-locating',
+          source: 'swift-line-locating-quote-form',
+          destinationBusinessName: 'Swift Line Locating',
+          name: `${first} ${last}`.trim(),
+          businessName: company,
+          phone: String(data.get('phone') || '').trim(),
+          email: String(data.get('email') || '').trim(),
+          projectType: service || 'Locate request',
+          notes: details || 'No additional project details provided.',
+          page: window.location.href
+        })
+      });
+      const result = await response.json().catch(() => ({}));
+      if (!response.ok || !result.ok || !result.emailed) throw new Error(result.error || 'Delivery failed');
+
+      quoteForm.reset();
+      showFormStatus('Your request has been sent directly to Swift Line Locating. We’ll follow up shortly.', true);
+    } catch (error) {
+      showFormStatus('We couldn’t send your request right now. Please call 780-676-0305 or email Locates@swiftlocating.ca.', false);
+    } finally {
+      btn.disabled = false;
+      btn.textContent = 'Submit Request →';
+    }
+  });
   </script>
 
   <footer>
